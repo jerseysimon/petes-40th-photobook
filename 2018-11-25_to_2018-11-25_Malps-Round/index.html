@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Malps Round</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --bg:#faf8f5; --ink:#2b2622; --accent:#b5622a; --card:#fff; --line:#e7ddd2; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: 'Georgia', 'Iowan Old Style', serif; background:var(--bg); color:var(--ink); }
+  header { padding: 48px 32px 24px; text-align:center; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 8px; font-size: 2.2rem; }
+  header .dates { font-family: system-ui, sans-serif; letter-spacing:.08em; text-transform:uppercase; font-size:.8rem; color:var(--accent); }
+  main { max-width: 960px; margin: 0 auto; padding: 32px; display:grid; gap:40px; }
+  h2 { font-family: system-ui, sans-serif; font-size:.85rem; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:16px;}
+  #map { height: 360px; border-radius: 8px; border:1px solid var(--line); }
+  .day { margin-bottom: 20px; }
+  .day h3 { font-family: system-ui, sans-serif; font-size: .95rem; margin: 0 0 6px; color: var(--ink); }
+  .day p { margin: 0 0 10px; line-height:1.6; }
+  ul.places { font-family: system-ui, sans-serif; line-height:1.8; padding-left: 20px; }
+  p.summary { font-size: 1.1rem; line-height:1.7; font-style: italic; }
+  .gallery { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:8px; }
+  .tile { position:relative; display:block; aspect-ratio:1; overflow:hidden; border-radius:6px; background:#eee; }
+  .tile img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .2s; }
+  .tile:hover img { transform: scale(1.05); }
+  .video-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; font-family: system-ui, sans-serif; pointer-events:none; }
+  .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
+  .sel-toggle { position:absolute; top:6px; left:6px; z-index:2; width:22px; height:22px; border-radius:50%;
+    background:rgba(255,255,255,.85); box-shadow:0 1px 3px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .sel-toggle input { width:16px; height:16px; margin:0; cursor:pointer; }
+  .picker-toolbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:12px;
+    background:var(--bg); border-bottom:1px solid var(--line); padding:10px 32px; font-family: system-ui, sans-serif; font-size:.85rem; }
+  .picker-toolbar button { font-family: system-ui, sans-serif; font-size:.8rem; border:1px solid var(--line); background:var(--card);
+    color:var(--ink); padding:5px 12px; border-radius:6px; cursor:pointer; }
+  .picker-toolbar button:hover { border-color:var(--accent); color:var(--accent); }
+  .picker-toolbar .sel-count { font-weight:bold; color:var(--accent); margin-right:auto; }
+  .tile { cursor: zoom-in; }
+  footer { text-align:center; padding: 24px; font-family: system-ui, sans-serif; font-size:.75rem; color:#8a8078; }
+
+  .lightbox { position:fixed; inset:0; background:rgba(15,12,10,.94); z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .lightbox[hidden] { display:none; }
+  .lb-stage { flex:1; width:100%; display:flex; align-items:center; justify-content:center; min-height:0; padding: 16px; }
+  .lb-stage img, .lb-stage video { max-width: 92vw; max-height: 76vh; object-fit:contain; border-radius:4px; }
+  .lb-close, .lb-prev, .lb-next { position:absolute; background:rgba(255,255,255,.1); color:#fff; border:none;
+    width:44px; height:44px; border-radius:50%; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .lb-close:hover, .lb-prev:hover, .lb-next:hover { background:rgba(255,255,255,.25); }
+  .lb-close { top:16px; right:16px; }
+  .lb-prev { left:16px; top:50%; transform:translateY(-50%); }
+  .lb-next { right:16px; top:50%; transform:translateY(-50%); }
+  .lb-footer { display:flex; align-items:center; gap:24px; padding: 16px 24px 28px; font-family: system-ui, sans-serif; color:#eee; font-size:.9rem; }
+  .lb-footer label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .lb-footer input { width:18px; height:18px; }
+  .lb-footer a { color:#e3a874; text-decoration:none; }
+  .lb-footer a:hover { text-decoration:underline; }
+  .lb-counter { color:#aaa; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dates">2018-11-25 &ndash; 2018-11-25</div>
+  <h1>Malps Round</h1>
+</header>
+<div class="picker-toolbar">
+  <span class="sel-count"><span id="selCount">0</span> selected for the book</span>
+  <button id="selectAllBtn" type="button">Select all</button>
+  <button id="clearSelBtn" type="button">Clear</button>
+  <button id="exportSelBtn" type="button">Export selection</button>
+</div>
+<main>
+  <section>
+    <h2>Map</h2>
+    <div id="map"></div>
+  </section>
+  <section>
+    <h2>Places Visited</h2>
+    <ul class="places"><li>Holiday Inn London - Mayfair</li></ul>
+  </section>
+  <section><h2>Summary</h2><p class="summary">A relaxed &#x27;Malps round&#x27; get-together.</p></section>
+  
+  <section>
+    <h2>Photos (5)</h2>
+    <div class="gallery"><div class="tile" data-photo="4027E855-45A4-4DC6-880A-2D7ECE678223_original.jpg" data-index="0">
+              <img src="thumbs/4027E855-45A4-4DC6-880A-2D7ECE678223_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="80207462-0FFE-46B9-B72E-851C25661D26_original.jpg" data-index="1">
+              <img src="thumbs/80207462-0FFE-46B9-B72E-851C25661D26_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="C6B02517-6A29-46AE-8FB9-733B5AAFFAB1_original.jpg" data-index="2">
+              <img src="thumbs/C6B02517-6A29-46AE-8FB9-733B5AAFFAB1_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="E16D45FE-D9BB-47C4-B4E8-AFB8504E182B_original.jpg" data-index="3">
+              <img src="thumbs/E16D45FE-D9BB-47C4-B4E8-AFB8504E182B_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="FCC8DF52-28D5-42AC-8FC2-1CF6F4D1ECF8_original.jpg" data-index="4">
+              <img src="thumbs/FCC8DF52-28D5-42AC-8FC2-1CF6F4D1ECF8_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div></div>
+  </section>
+</main>
+
+<div id="lightbox" class="lightbox" hidden>
+  <button class="lb-close" id="lbClose" type="button" aria-label="Close">&times;</button>
+  <button class="lb-prev" id="lbPrev" type="button" aria-label="Previous">&#8249;</button>
+  <div class="lb-stage">
+    <img id="lbImg" alt="" hidden>
+    <video id="lbVideo" controls hidden></video>
+  </div>
+  <button class="lb-next" id="lbNext" type="button" aria-label="Next">&#8250;</button>
+  <div class="lb-footer">
+    <span class="lb-counter"><span id="lbIndex">1</span> / 5</span>
+    <label><input type="checkbox" id="lbCheckbox"> Select for book</label>
+    
+  </div>
+</div>
+
+<footer>Generated from the Momento diary archive</footer>
+<script>
+  const markers = [
+{lat:51.50769752539059,lon:-0.1424046074225771,name:"Holiday Inn London - Mayfair"}
+  ];
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  if (markers.length === 1) {
+    // Single key marker (holiday/camping trips): zoom out to country level rather than
+    // zooming in tight on one point — the map is just "roughly where in the country".
+    L.marker([markers[0].lat, markers[0].lon]).addTo(map).bindPopup(markers[0].name);
+    map.setView([markers[0].lat, markers[0].lon], 6);
+  } else if (markers.length) {
+    const group = [];
+    markers.forEach(m => {
+      L.marker([m.lat, m.lon]).addTo(map).bindPopup(m.name);
+      group.push([m.lat, m.lon]);
+    });
+    map.fitBounds(group, {padding: [40,40]});
+  } else {
+    map.setView([51.5, -0.1], 6);
+  }
+
+  // --- photo picker ---
+  const TRIP_SLUG = "2018-11-25_to_2018-11-25_Malps-Round";
+  const STORAGE_KEY = 'photobook-sel-' + TRIP_SLUG;
+  let selected = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+  const tiles = [...document.querySelectorAll('.tile')];
+  const selCountEl = document.getElementById('selCount');
+  const lbCheckbox = document.getElementById('lbCheckbox');
+  let lbOpenIndex = null;
+
+  function updateCount() { selCountEl.textContent = selected.size; }
+  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); updateCount(); }
+  function setTileState(tile, on) {
+    const cb = tile.querySelector('.sel-checkbox');
+    cb.checked = on;
+    tile.classList.toggle('selected', on);
+    if (lbOpenIndex !== null && tiles[lbOpenIndex] === tile) lbCheckbox.checked = on;
+  }
+  function toggleSelection(tile) {
+    const photo = tile.dataset.photo;
+    const on = !selected.has(photo);
+    if (on) selected.add(photo); else selected.delete(photo);
+    setTileState(tile, on);
+    save();
+  }
+
+  tiles.forEach(tile => {
+    const photo = tile.dataset.photo;
+    const cb = tile.querySelector('.sel-checkbox');
+    setTileState(tile, selected.has(photo));
+    cb.addEventListener('change', () => toggleSelection(tile));
+    tile.addEventListener('click', (e) => {
+      if (e.target.closest('.sel-toggle')) return;  // checkbox click already handled above
+      openLightbox(Number(tile.dataset.index));
+    });
+  });
+  updateCount();
+
+  document.getElementById('selectAllBtn').onclick = () => {
+    tiles.forEach(tile => { selected.add(tile.dataset.photo); setTileState(tile, true); });
+    save();
+  };
+  document.getElementById('clearSelBtn').onclick = () => {
+    tiles.forEach(tile => setTileState(tile, false));
+    selected.clear();
+    save();
+  };
+  document.getElementById('exportSelBtn').onclick = () => {
+    const data = {trip: TRIP_SLUG, selected: [...selected]};
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = TRIP_SLUG + '_selected.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- lightbox ---
+  const PHOTOS = [
+{full:"large/4027E855-45A4-4DC6-880A-2D7ECE678223_large.jpg",large:"large/4027E855-45A4-4DC6-880A-2D7ECE678223_large.jpg",video:false},
+{full:"large/80207462-0FFE-46B9-B72E-851C25661D26_large.jpg",large:"large/80207462-0FFE-46B9-B72E-851C25661D26_large.jpg",video:false},
+{full:"large/C6B02517-6A29-46AE-8FB9-733B5AAFFAB1_large.jpg",large:"large/C6B02517-6A29-46AE-8FB9-733B5AAFFAB1_large.jpg",video:false},
+{full:"large/E16D45FE-D9BB-47C4-B4E8-AFB8504E182B_large.jpg",large:"large/E16D45FE-D9BB-47C4-B4E8-AFB8504E182B_large.jpg",video:false},
+{full:"large/FCC8DF52-28D5-42AC-8FC2-1CF6F4D1ECF8_large.jpg",large:"large/FCC8DF52-28D5-42AC-8FC2-1CF6F4D1ECF8_large.jpg",video:false}
+  ];
+  const lightbox = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lbImg');
+  const lbVideo = document.getElementById('lbVideo');
+  const lbIndex = document.getElementById('lbIndex');
+  const lbOriginalLink = document.getElementById('lbOriginalLink');
+
+  function openLightbox(i) {
+    lbOpenIndex = i;
+    const item = PHOTOS[i];
+    lbVideo.pause();
+    if (item.video) {
+      lbVideo.src = item.full;
+      lbVideo.hidden = false;
+      lbImg.hidden = true;
+    } else {
+      lbImg.src = item.large || item.full;
+      lbImg.hidden = false;
+      lbVideo.hidden = true;
+      lbVideo.removeAttribute('src');
+    }
+    lbIndex.textContent = i + 1;
+    if (lbOriginalLink) lbOriginalLink.href = item.full;
+    lbCheckbox.checked = selected.has(tiles[i].dataset.photo);
+    lightbox.hidden = false;
+  }
+  function closeLightbox() {
+    lightbox.hidden = true;
+    lbVideo.pause();
+    lbOpenIndex = null;
+  }
+  function showDelta(delta) {
+    if (lbOpenIndex === null) return;
+    openLightbox((lbOpenIndex + delta + PHOTOS.length) % PHOTOS.length);
+  }
+
+  document.getElementById('lbClose').onclick = closeLightbox;
+  document.getElementById('lbPrev').onclick = () => showDelta(-1);
+  document.getElementById('lbNext').onclick = () => showDelta(1);
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+  lbCheckbox.addEventListener('change', () => {
+    if (lbOpenIndex !== null) toggleSelection(tiles[lbOpenIndex]);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (lightbox.hidden) return;
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === 'ArrowLeft') showDelta(-1);
+    else if (e.key === 'ArrowRight') showDelta(1);
+    else if (e.key === ' ') { e.preventDefault(); lbCheckbox.checked = !lbCheckbox.checked; lbCheckbox.dispatchEvent(new Event('change')); }
+  });
+</script>
+</body>
+</html>

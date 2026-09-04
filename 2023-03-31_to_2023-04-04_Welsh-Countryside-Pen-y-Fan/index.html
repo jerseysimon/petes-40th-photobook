@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welsh Countryside &amp; Pen-y-Fan</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --bg:#faf8f5; --ink:#2b2622; --accent:#b5622a; --card:#fff; --line:#e7ddd2; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: 'Georgia', 'Iowan Old Style', serif; background:var(--bg); color:var(--ink); }
+  header { padding: 48px 32px 24px; text-align:center; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 8px; font-size: 2.2rem; }
+  header .dates { font-family: system-ui, sans-serif; letter-spacing:.08em; text-transform:uppercase; font-size:.8rem; color:var(--accent); }
+  main { max-width: 960px; margin: 0 auto; padding: 32px; display:grid; gap:40px; }
+  h2 { font-family: system-ui, sans-serif; font-size:.85rem; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:16px;}
+  #map { height: 360px; border-radius: 8px; border:1px solid var(--line); }
+  .day { margin-bottom: 20px; }
+  .day h3 { font-family: system-ui, sans-serif; font-size: .95rem; margin: 0 0 6px; color: var(--ink); }
+  .day p { margin: 0 0 10px; line-height:1.6; }
+  ul.places { font-family: system-ui, sans-serif; line-height:1.8; padding-left: 20px; }
+  p.summary { font-size: 1.1rem; line-height:1.7; font-style: italic; }
+  .gallery { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:8px; }
+  .tile { position:relative; display:block; aspect-ratio:1; overflow:hidden; border-radius:6px; background:#eee; }
+  .tile img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .2s; }
+  .tile:hover img { transform: scale(1.05); }
+  .video-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; font-family: system-ui, sans-serif; pointer-events:none; }
+  .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
+  .sel-toggle { position:absolute; top:6px; left:6px; z-index:2; width:22px; height:22px; border-radius:50%;
+    background:rgba(255,255,255,.85); box-shadow:0 1px 3px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .sel-toggle input { width:16px; height:16px; margin:0; cursor:pointer; }
+  .picker-toolbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:12px;
+    background:var(--bg); border-bottom:1px solid var(--line); padding:10px 32px; font-family: system-ui, sans-serif; font-size:.85rem; }
+  .picker-toolbar button { font-family: system-ui, sans-serif; font-size:.8rem; border:1px solid var(--line); background:var(--card);
+    color:var(--ink); padding:5px 12px; border-radius:6px; cursor:pointer; }
+  .picker-toolbar button:hover { border-color:var(--accent); color:var(--accent); }
+  .picker-toolbar .sel-count { font-weight:bold; color:var(--accent); margin-right:auto; }
+  .tile { cursor: zoom-in; }
+  footer { text-align:center; padding: 24px; font-family: system-ui, sans-serif; font-size:.75rem; color:#8a8078; }
+
+  .lightbox { position:fixed; inset:0; background:rgba(15,12,10,.94); z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .lightbox[hidden] { display:none; }
+  .lb-stage { flex:1; width:100%; display:flex; align-items:center; justify-content:center; min-height:0; padding: 16px; }
+  .lb-stage img, .lb-stage video { max-width: 92vw; max-height: 76vh; object-fit:contain; border-radius:4px; }
+  .lb-close, .lb-prev, .lb-next { position:absolute; background:rgba(255,255,255,.1); color:#fff; border:none;
+    width:44px; height:44px; border-radius:50%; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .lb-close:hover, .lb-prev:hover, .lb-next:hover { background:rgba(255,255,255,.25); }
+  .lb-close { top:16px; right:16px; }
+  .lb-prev { left:16px; top:50%; transform:translateY(-50%); }
+  .lb-next { right:16px; top:50%; transform:translateY(-50%); }
+  .lb-footer { display:flex; align-items:center; gap:24px; padding: 16px 24px 28px; font-family: system-ui, sans-serif; color:#eee; font-size:.9rem; }
+  .lb-footer label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .lb-footer input { width:18px; height:18px; }
+  .lb-footer a { color:#e3a874; text-decoration:none; }
+  .lb-footer a:hover { text-decoration:underline; }
+  .lb-counter { color:#aaa; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dates">2023-03-31 &ndash; 2023-04-07</div>
+  <h1>Welsh Countryside &amp; Pen-y-Fan</h1>
+</header>
+<div class="picker-toolbar">
+  <span class="sel-count"><span id="selCount">0</span> selected for the book</span>
+  <button id="selectAllBtn" type="button">Select all</button>
+  <button id="clearSelBtn" type="button">Clear</button>
+  <button id="exportSelBtn" type="button">Export selection</button>
+</div>
+<main>
+  <section>
+    <h2>Map</h2>
+    <div id="map"></div>
+  </section>
+  <section>
+    <h2>Places Visited</h2>
+    <ul class="places"><li>Happy Horse Cottages</li><li>National Park Visitor Centre</li><li>Wales Ape and Monkey Sanctuary</li><li>Brecon Beacons National Park</li><li>Pont ar Daf</li><li>Ogmore Beach</li><li>The National Showcaves Centre for Wales</li><li>Shire Horse Centre</li><li>Sgwd Clun-gwyn Waterfalls Walk</li><li>Easter 2023</li><li>Glyn Tarell, Powys</li></ul>
+  </section>
+  <section><h2>Summary</h2><p class="summary">Countryside days with sheep and horses, an ape sanctuary visit, a walk up towards Pen-y-Fan, and a sunny beach day finished off with fish and chips.</p></section>
+  
+  <section>
+    <h2>Photos (110)</h2>
+    <div class="gallery"><div class="tile" data-photo="0243D7D9-70FF-470C-9ECF-C5E66AE3F18D_original.jpg" data-index="0">
+              <img src="thumbs/0243D7D9-70FF-470C-9ECF-C5E66AE3F18D_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="077958D7-6638-4AC7-BE9D-BAFA0F44D4F1_original.jpg" data-index="1">
+              <img src="thumbs/077958D7-6638-4AC7-BE9D-BAFA0F44D4F1_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="13E104F9-695B-454E-ACF2-6877E695C99B_original.jpg" data-index="2">
+              <img src="thumbs/13E104F9-695B-454E-ACF2-6877E695C99B_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="24084890-8F12-4E98-8C5E-3220A57E1042_original.jpg" data-index="3">
+              <img src="thumbs/24084890-8F12-4E98-8C5E-3220A57E1042_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="2C35C4EC-CF71-4F0B-96F9-19B6A1E3E679_original.jpg" data-index="4">
+              <img src="thumbs/2C35C4EC-CF71-4F0B-96F9-19B6A1E3E679_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="32831F88-1F43-431B-A617-4737E076BF0B_original.jpg" data-index="5">
+              <img src="thumbs/32831F88-1F43-431B-A617-4737E076BF0B_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="33EDE102-426A-4757-BAB2-134C644B57FE_original.jpg" data-index="6">
+              <img src="thumbs/33EDE102-426A-4757-BAB2-134C644B57FE_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="38660A54-1F36-4698-96DA-8DD46741485E_original.jpg" data-index="7">
+              <img src="thumbs/38660A54-1F36-4698-96DA-8DD46741485E_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="408664B2-D745-4819-8D11-C36439FD9986_original.jpg" data-index="8">
+              <img src="thumbs/408664B2-D745-4819-8D11-C36439FD9986_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="48666C70-DE50-4E32-BD31-3A6C8CEA9D88_original.jpg" data-index="9">
+              <img src="thumbs/48666C70-DE50-4E32-BD31-3A6C8CEA9D88_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="4B3CA2AC-2AA0-4B9F-9033-9F51CAB1931D_original.jpg" data-index="10">
+              <img src="thumbs/4B3CA2AC-2AA0-4B9F-9033-9F51CAB1931D_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="56AEF573-85D5-4A90-AEF2-5BD503CA29CD_original.jpg" data-index="11">
+              <img src="thumbs/56AEF573-85D5-4A90-AEF2-5BD503CA29CD_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="5AF22C7E-3C70-4A45-B30E-F52B9C71D99B_original.jpg" data-index="12">
+              <img src="thumbs/5AF22C7E-3C70-4A45-B30E-F52B9C71D99B_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="5DDAC1A1-4A76-4DC8-87F4-5BAB8E4A796E_original.jpg" data-index="13">
+              <img src="thumbs/5DDAC1A1-4A76-4DC8-87F4-5BAB8E4A796E_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="7D9BB0C9-7BD3-4A47-8E2F-16139360D342_original.jpg" data-index="14">
+              <img src="thumbs/7D9BB0C9-7BD3-4A47-8E2F-16139360D342_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="800B3FF1-3331-46B2-A960-D1ACA4FA3507_original.jpg" data-index="15">
+              <img src="thumbs/800B3FF1-3331-46B2-A960-D1ACA4FA3507_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="82886E56-7204-4C87-94DE-16316918604C_original.jpg" data-index="16">
+              <img src="thumbs/82886E56-7204-4C87-94DE-16316918604C_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="84DF627E-D53F-45A9-865B-7AEEFF90AB85_original.jpg" data-index="17">
+              <img src="thumbs/84DF627E-D53F-45A9-865B-7AEEFF90AB85_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="87C636BA-979B-450E-93C8-3AFDD99BF34B_original.jpg" data-index="18">
+              <img src="thumbs/87C636BA-979B-450E-93C8-3AFDD99BF34B_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="98D28DE7-B5DE-4E48-B497-F3A9AF630DBD_original.jpg" data-index="19">
+              <img src="thumbs/98D28DE7-B5DE-4E48-B497-F3A9AF630DBD_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="9B599586-6B2A-4F8F-BA4A-E9096CDE4DCA_original.mp4" data-index="20">
+              <img src="thumbs/9B599586-6B2A-4F8F-BA4A-E9096CDE4DCA_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="A5CAC269-87E9-4520-891F-9955C5C31856_original.jpg" data-index="21">
+              <img src="thumbs/A5CAC269-87E9-4520-891F-9955C5C31856_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="B8D012D2-21C0-46C0-992D-523B7A01D283_original.jpg" data-index="22">
+              <img src="thumbs/B8D012D2-21C0-46C0-992D-523B7A01D283_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="C592639D-991F-478B-A371-775CA28CE63E_original.jpg" data-index="23">
+              <img src="thumbs/C592639D-991F-478B-A371-775CA28CE63E_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="CC8AEA5B-ECE3-43A6-8647-614016888173_original.jpg" data-index="24">
+              <img src="thumbs/CC8AEA5B-ECE3-43A6-8647-614016888173_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="CE6B1193-EFED-4075-833D-A09445C9F091_original.jpg" data-index="25">
+              <img src="thumbs/CE6B1193-EFED-4075-833D-A09445C9F091_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="D0802931-D430-47FE-ADAE-3798FBCC6E88_original.jpg" data-index="26">
+              <img src="thumbs/D0802931-D430-47FE-ADAE-3798FBCC6E88_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="D9DF2F75-7346-41D1-A0E0-7B139EEAA741_original.jpg" data-index="27">
+              <img src="thumbs/D9DF2F75-7346-41D1-A0E0-7B139EEAA741_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="E20AED45-BD88-436E-BEBE-9679B467C495_original.jpg" data-index="28">
+              <img src="thumbs/E20AED45-BD88-436E-BEBE-9679B467C495_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="EAA60EE2-42B0-4871-8630-6CB0F58D47F6_original.mp4" data-index="29">
+              <img src="thumbs/EAA60EE2-42B0-4871-8630-6CB0F58D47F6_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="F95619EB-581F-4232-BD32-22966E3F3569_original.jpg" data-index="30">
+              <img src="thumbs/F95619EB-581F-4232-BD32-22966E3F3569_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_073842_original.jpg" data-index="31">
+              <img src="thumbs/friend_20230401_073842_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_091702_original.jpg" data-index="32">
+              <img src="thumbs/friend_20230401_091702_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_143919_original.jpg" data-index="33">
+              <img src="thumbs/friend_20230401_143919_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_144117_original.jpg" data-index="34">
+              <img src="thumbs/friend_20230401_144117_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_153316_original.jpg" data-index="35">
+              <img src="thumbs/friend_20230401_153316_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_153319_original.jpg" data-index="36">
+              <img src="thumbs/friend_20230401_153319_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_154503_original.jpg" data-index="37">
+              <img src="thumbs/friend_20230401_154503_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_154514_original.jpg" data-index="38">
+              <img src="thumbs/friend_20230401_154514_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_160342_original.jpg" data-index="39">
+              <img src="thumbs/friend_20230401_160342_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230401_160358_original.jpg" data-index="40">
+              <img src="thumbs/friend_20230401_160358_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230402_131101_original.jpg" data-index="41">
+              <img src="thumbs/friend_20230402_131101_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230402_150708_original.jpg" data-index="42">
+              <img src="thumbs/friend_20230402_150708_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230402_151203_original.jpg" data-index="43">
+              <img src="thumbs/friend_20230402_151203_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_112751_original.jpg" data-index="44">
+              <img src="thumbs/friend_20230403_112751_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_112849_original.jpg" data-index="45">
+              <img src="thumbs/friend_20230403_112849_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_112908_original.jpg" data-index="46">
+              <img src="thumbs/friend_20230403_112908_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_120407_original.jpg" data-index="47">
+              <img src="thumbs/friend_20230403_120407_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_121856_original.jpg" data-index="48">
+              <img src="thumbs/friend_20230403_121856_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_185115_original.jpg" data-index="49">
+              <img src="thumbs/friend_20230403_185115_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_185155_original.jpg" data-index="50">
+              <img src="thumbs/friend_20230403_185155_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_185328_original.jpg" data-index="51">
+              <img src="thumbs/friend_20230403_185328_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230403_185514_original.jpg" data-index="52">
+              <img src="thumbs/friend_20230403_185514_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230404_144418_original.jpg" data-index="53">
+              <img src="thumbs/friend_20230404_144418_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230404_152252_original.jpg" data-index="54">
+              <img src="thumbs/friend_20230404_152252_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230404_152835_original.jpg" data-index="55">
+              <img src="thumbs/friend_20230404_152835_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230404_155143_original.jpg" data-index="56">
+              <img src="thumbs/friend_20230404_155143_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230404_155420_original.jpg" data-index="57">
+              <img src="thumbs/friend_20230404_155420_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230404_160927_original.jpg" data-index="58">
+              <img src="thumbs/friend_20230404_160927_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230405_143516_original.jpg" data-index="59">
+              <img src="thumbs/friend_20230405_143516_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230405_145742_original.jpg" data-index="60">
+              <img src="thumbs/friend_20230405_145742_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230405_145749_original.jpg" data-index="61">
+              <img src="thumbs/friend_20230405_145749_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_093750_original.jpg" data-index="62">
+              <img src="thumbs/friend_20230406_093750_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_094732_original.jpg" data-index="63">
+              <img src="thumbs/friend_20230406_094732_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_094741_original.jpg" data-index="64">
+              <img src="thumbs/friend_20230406_094741_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_094750_original.jpg" data-index="65">
+              <img src="thumbs/friend_20230406_094750_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_094759_original.jpg" data-index="66">
+              <img src="thumbs/friend_20230406_094759_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_102753_original.jpg" data-index="67">
+              <img src="thumbs/friend_20230406_102753_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230406_105120_original.jpg" data-index="68">
+              <img src="thumbs/friend_20230406_105120_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_094630_original.jpg" data-index="69">
+              <img src="thumbs/friend_20230407_094630_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_094813_original.jpg" data-index="70">
+              <img src="thumbs/friend_20230407_094813_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_094815_original.jpg" data-index="71">
+              <img src="thumbs/friend_20230407_094815_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_113411_original.jpg" data-index="72">
+              <img src="thumbs/friend_20230407_113411_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_113754_original.jpg" data-index="73">
+              <img src="thumbs/friend_20230407_113754_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_125535_original.jpg" data-index="74">
+              <img src="thumbs/friend_20230407_125535_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_130044_original.jpg" data-index="75">
+              <img src="thumbs/friend_20230407_130044_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_130231_original.jpg" data-index="76">
+              <img src="thumbs/friend_20230407_130231_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_130237_original.jpg" data-index="77">
+              <img src="thumbs/friend_20230407_130237_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_130455_original.jpg" data-index="78">
+              <img src="thumbs/friend_20230407_130455_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_130609_original.jpg" data-index="79">
+              <img src="thumbs/friend_20230407_130609_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_20230407_135921_original.jpg" data-index="80">
+              <img src="thumbs/friend_20230407_135921_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5427_original.heic" data-index="81">
+              <img src="thumbs/friend_IMG_5427_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5427_original.mp4" data-index="82">
+              <img src="thumbs/friend_IMG_5427_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5431_original.heic" data-index="83">
+              <img src="thumbs/friend_IMG_5431_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5431_original.mp4" data-index="84">
+              <img src="thumbs/friend_IMG_5431_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5458_original.heic" data-index="85">
+              <img src="thumbs/friend_IMG_5458_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5458_original.mp4" data-index="86">
+              <img src="thumbs/friend_IMG_5458_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5459_original.heic" data-index="87">
+              <img src="thumbs/friend_IMG_5459_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5459_original.mp4" data-index="88">
+              <img src="thumbs/friend_IMG_5459_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5472_original.heic" data-index="89">
+              <img src="thumbs/friend_IMG_5472_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5472_original.mp4" data-index="90">
+              <img src="thumbs/friend_IMG_5472_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5473_original.heic" data-index="91">
+              <img src="thumbs/friend_IMG_5473_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5473_original.mp4" data-index="92">
+              <img src="thumbs/friend_IMG_5473_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5489_original.heic" data-index="93">
+              <img src="thumbs/friend_IMG_5489_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5489_original.mp4" data-index="94">
+              <img src="thumbs/friend_IMG_5489_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5493_original.heic" data-index="95">
+              <img src="thumbs/friend_IMG_5493_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5493_original.mp4" data-index="96">
+              <img src="thumbs/friend_IMG_5493_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5497_original.heic" data-index="97">
+              <img src="thumbs/friend_IMG_5497_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5497_original.mp4" data-index="98">
+              <img src="thumbs/friend_IMG_5497_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5501_original.heic" data-index="99">
+              <img src="thumbs/friend_IMG_5501_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5501_original.mp4" data-index="100">
+              <img src="thumbs/friend_IMG_5501_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5515_original.heic" data-index="101">
+              <img src="thumbs/friend_IMG_5515_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5515_original.mp4" data-index="102">
+              <img src="thumbs/friend_IMG_5515_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5554_original.heic" data-index="103">
+              <img src="thumbs/friend_IMG_5554_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5554_original.mp4" data-index="104">
+              <img src="thumbs/friend_IMG_5554_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5557_original.heic" data-index="105">
+              <img src="thumbs/friend_IMG_5557_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_5557_original.mp4" data-index="106">
+              <img src="thumbs/friend_IMG_5557_thumb.jpg" loading="lazy" alt="">
+              <span class="video-badge">▶</span>
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_IMG_7039_original.heic" data-index="107">
+              <img src="thumbs/friend_IMG_7039_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="friend_PXL_20230407_120013914_original.jpg" data-index="108">
+              <img src="thumbs/friend_PXL_20230407_120013914_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div><div class="tile" data-photo="trip_map_original.jpg" data-index="109">
+              <img src="thumbs/trip_map_thumb.jpg" loading="lazy" alt="">
+              
+              <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+            </div></div>
+  </section>
+</main>
+
+<div id="lightbox" class="lightbox" hidden>
+  <button class="lb-close" id="lbClose" type="button" aria-label="Close">&times;</button>
+  <button class="lb-prev" id="lbPrev" type="button" aria-label="Previous">&#8249;</button>
+  <div class="lb-stage">
+    <img id="lbImg" alt="" hidden>
+    <video id="lbVideo" controls hidden></video>
+  </div>
+  <button class="lb-next" id="lbNext" type="button" aria-label="Next">&#8250;</button>
+  <div class="lb-footer">
+    <span class="lb-counter"><span id="lbIndex">1</span> / 110</span>
+    <label><input type="checkbox" id="lbCheckbox"> Select for book</label>
+    
+  </div>
+</div>
+
+<footer>Generated from the Momento diary archive</footer>
+<script>
+  const markers = [
+{lat:51.892290305471235,lon:-3.628081977367401,name:"Happy Horse Cottages, South Wales"}
+  ];
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  if (markers.length === 1) {
+    // Single key marker (holiday/camping trips): zoom out to country level rather than
+    // zooming in tight on one point — the map is just "roughly where in the country".
+    L.marker([markers[0].lat, markers[0].lon]).addTo(map).bindPopup(markers[0].name);
+    map.setView([markers[0].lat, markers[0].lon], 6);
+  } else if (markers.length) {
+    const group = [];
+    markers.forEach(m => {
+      L.marker([m.lat, m.lon]).addTo(map).bindPopup(m.name);
+      group.push([m.lat, m.lon]);
+    });
+    map.fitBounds(group, {padding: [40,40]});
+  } else {
+    map.setView([51.5, -0.1], 6);
+  }
+
+  // --- photo picker ---
+  const TRIP_SLUG = "2023-03-31_to_2023-04-04_Welsh-Countryside-Pen-y-Fan";
+  const STORAGE_KEY = 'photobook-sel-' + TRIP_SLUG;
+  let selected = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+  const tiles = [...document.querySelectorAll('.tile')];
+  const selCountEl = document.getElementById('selCount');
+  const lbCheckbox = document.getElementById('lbCheckbox');
+  let lbOpenIndex = null;
+
+  function updateCount() { selCountEl.textContent = selected.size; }
+  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); updateCount(); }
+  function setTileState(tile, on) {
+    const cb = tile.querySelector('.sel-checkbox');
+    cb.checked = on;
+    tile.classList.toggle('selected', on);
+    if (lbOpenIndex !== null && tiles[lbOpenIndex] === tile) lbCheckbox.checked = on;
+  }
+  function toggleSelection(tile) {
+    const photo = tile.dataset.photo;
+    const on = !selected.has(photo);
+    if (on) selected.add(photo); else selected.delete(photo);
+    setTileState(tile, on);
+    save();
+  }
+
+  tiles.forEach(tile => {
+    const photo = tile.dataset.photo;
+    const cb = tile.querySelector('.sel-checkbox');
+    setTileState(tile, selected.has(photo));
+    cb.addEventListener('change', () => toggleSelection(tile));
+    tile.addEventListener('click', (e) => {
+      if (e.target.closest('.sel-toggle')) return;  // checkbox click already handled above
+      openLightbox(Number(tile.dataset.index));
+    });
+  });
+  updateCount();
+
+  document.getElementById('selectAllBtn').onclick = () => {
+    tiles.forEach(tile => { selected.add(tile.dataset.photo); setTileState(tile, true); });
+    save();
+  };
+  document.getElementById('clearSelBtn').onclick = () => {
+    tiles.forEach(tile => setTileState(tile, false));
+    selected.clear();
+    save();
+  };
+  document.getElementById('exportSelBtn').onclick = () => {
+    const data = {trip: TRIP_SLUG, selected: [...selected]};
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = TRIP_SLUG + '_selected.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- lightbox ---
+  const PHOTOS = [
+{full:"large/0243D7D9-70FF-470C-9ECF-C5E66AE3F18D_large.jpg",large:"large/0243D7D9-70FF-470C-9ECF-C5E66AE3F18D_large.jpg",video:false},
+{full:"large/077958D7-6638-4AC7-BE9D-BAFA0F44D4F1_large.jpg",large:"large/077958D7-6638-4AC7-BE9D-BAFA0F44D4F1_large.jpg",video:false},
+{full:"large/13E104F9-695B-454E-ACF2-6877E695C99B_large.jpg",large:"large/13E104F9-695B-454E-ACF2-6877E695C99B_large.jpg",video:false},
+{full:"large/24084890-8F12-4E98-8C5E-3220A57E1042_large.jpg",large:"large/24084890-8F12-4E98-8C5E-3220A57E1042_large.jpg",video:false},
+{full:"large/2C35C4EC-CF71-4F0B-96F9-19B6A1E3E679_large.jpg",large:"large/2C35C4EC-CF71-4F0B-96F9-19B6A1E3E679_large.jpg",video:false},
+{full:"large/32831F88-1F43-431B-A617-4737E076BF0B_large.jpg",large:"large/32831F88-1F43-431B-A617-4737E076BF0B_large.jpg",video:false},
+{full:"large/33EDE102-426A-4757-BAB2-134C644B57FE_large.jpg",large:"large/33EDE102-426A-4757-BAB2-134C644B57FE_large.jpg",video:false},
+{full:"large/38660A54-1F36-4698-96DA-8DD46741485E_large.jpg",large:"large/38660A54-1F36-4698-96DA-8DD46741485E_large.jpg",video:false},
+{full:"large/408664B2-D745-4819-8D11-C36439FD9986_large.jpg",large:"large/408664B2-D745-4819-8D11-C36439FD9986_large.jpg",video:false},
+{full:"large/48666C70-DE50-4E32-BD31-3A6C8CEA9D88_large.jpg",large:"large/48666C70-DE50-4E32-BD31-3A6C8CEA9D88_large.jpg",video:false},
+{full:"large/4B3CA2AC-2AA0-4B9F-9033-9F51CAB1931D_large.jpg",large:"large/4B3CA2AC-2AA0-4B9F-9033-9F51CAB1931D_large.jpg",video:false},
+{full:"large/56AEF573-85D5-4A90-AEF2-5BD503CA29CD_large.jpg",large:"large/56AEF573-85D5-4A90-AEF2-5BD503CA29CD_large.jpg",video:false},
+{full:"large/5AF22C7E-3C70-4A45-B30E-F52B9C71D99B_large.jpg",large:"large/5AF22C7E-3C70-4A45-B30E-F52B9C71D99B_large.jpg",video:false},
+{full:"large/5DDAC1A1-4A76-4DC8-87F4-5BAB8E4A796E_large.jpg",large:"large/5DDAC1A1-4A76-4DC8-87F4-5BAB8E4A796E_large.jpg",video:false},
+{full:"large/7D9BB0C9-7BD3-4A47-8E2F-16139360D342_large.jpg",large:"large/7D9BB0C9-7BD3-4A47-8E2F-16139360D342_large.jpg",video:false},
+{full:"large/800B3FF1-3331-46B2-A960-D1ACA4FA3507_large.jpg",large:"large/800B3FF1-3331-46B2-A960-D1ACA4FA3507_large.jpg",video:false},
+{full:"large/82886E56-7204-4C87-94DE-16316918604C_large.jpg",large:"large/82886E56-7204-4C87-94DE-16316918604C_large.jpg",video:false},
+{full:"large/84DF627E-D53F-45A9-865B-7AEEFF90AB85_large.jpg",large:"large/84DF627E-D53F-45A9-865B-7AEEFF90AB85_large.jpg",video:false},
+{full:"large/87C636BA-979B-450E-93C8-3AFDD99BF34B_large.jpg",large:"large/87C636BA-979B-450E-93C8-3AFDD99BF34B_large.jpg",video:false},
+{full:"large/98D28DE7-B5DE-4E48-B497-F3A9AF630DBD_large.jpg",large:"large/98D28DE7-B5DE-4E48-B497-F3A9AF630DBD_large.jpg",video:false},
+{full:"thumbs/9B599586-6B2A-4F8F-BA4A-E9096CDE4DCA_thumb.jpg",large:null,video:false},
+{full:"large/A5CAC269-87E9-4520-891F-9955C5C31856_large.jpg",large:"large/A5CAC269-87E9-4520-891F-9955C5C31856_large.jpg",video:false},
+{full:"large/B8D012D2-21C0-46C0-992D-523B7A01D283_large.jpg",large:"large/B8D012D2-21C0-46C0-992D-523B7A01D283_large.jpg",video:false},
+{full:"large/C592639D-991F-478B-A371-775CA28CE63E_large.jpg",large:"large/C592639D-991F-478B-A371-775CA28CE63E_large.jpg",video:false},
+{full:"large/CC8AEA5B-ECE3-43A6-8647-614016888173_large.jpg",large:"large/CC8AEA5B-ECE3-43A6-8647-614016888173_large.jpg",video:false},
+{full:"large/CE6B1193-EFED-4075-833D-A09445C9F091_large.jpg",large:"large/CE6B1193-EFED-4075-833D-A09445C9F091_large.jpg",video:false},
+{full:"large/D0802931-D430-47FE-ADAE-3798FBCC6E88_large.jpg",large:"large/D0802931-D430-47FE-ADAE-3798FBCC6E88_large.jpg",video:false},
+{full:"large/D9DF2F75-7346-41D1-A0E0-7B139EEAA741_large.jpg",large:"large/D9DF2F75-7346-41D1-A0E0-7B139EEAA741_large.jpg",video:false},
+{full:"large/E20AED45-BD88-436E-BEBE-9679B467C495_large.jpg",large:"large/E20AED45-BD88-436E-BEBE-9679B467C495_large.jpg",video:false},
+{full:"thumbs/EAA60EE2-42B0-4871-8630-6CB0F58D47F6_thumb.jpg",large:null,video:false},
+{full:"large/F95619EB-581F-4232-BD32-22966E3F3569_large.jpg",large:"large/F95619EB-581F-4232-BD32-22966E3F3569_large.jpg",video:false},
+{full:"large/friend_20230401_073842_large.jpg",large:"large/friend_20230401_073842_large.jpg",video:false},
+{full:"large/friend_20230401_091702_large.jpg",large:"large/friend_20230401_091702_large.jpg",video:false},
+{full:"large/friend_20230401_143919_large.jpg",large:"large/friend_20230401_143919_large.jpg",video:false},
+{full:"large/friend_20230401_144117_large.jpg",large:"large/friend_20230401_144117_large.jpg",video:false},
+{full:"large/friend_20230401_153316_large.jpg",large:"large/friend_20230401_153316_large.jpg",video:false},
+{full:"large/friend_20230401_153319_large.jpg",large:"large/friend_20230401_153319_large.jpg",video:false},
+{full:"large/friend_20230401_154503_large.jpg",large:"large/friend_20230401_154503_large.jpg",video:false},
+{full:"large/friend_20230401_154514_large.jpg",large:"large/friend_20230401_154514_large.jpg",video:false},
+{full:"large/friend_20230401_160342_large.jpg",large:"large/friend_20230401_160342_large.jpg",video:false},
+{full:"large/friend_20230401_160358_large.jpg",large:"large/friend_20230401_160358_large.jpg",video:false},
+{full:"large/friend_20230402_131101_large.jpg",large:"large/friend_20230402_131101_large.jpg",video:false},
+{full:"large/friend_20230402_150708_large.jpg",large:"large/friend_20230402_150708_large.jpg",video:false},
+{full:"large/friend_20230402_151203_large.jpg",large:"large/friend_20230402_151203_large.jpg",video:false},
+{full:"large/friend_20230403_112751_large.jpg",large:"large/friend_20230403_112751_large.jpg",video:false},
+{full:"large/friend_20230403_112849_large.jpg",large:"large/friend_20230403_112849_large.jpg",video:false},
+{full:"large/friend_20230403_112908_large.jpg",large:"large/friend_20230403_112908_large.jpg",video:false},
+{full:"large/friend_20230403_120407_large.jpg",large:"large/friend_20230403_120407_large.jpg",video:false},
+{full:"large/friend_20230403_121856_large.jpg",large:"large/friend_20230403_121856_large.jpg",video:false},
+{full:"large/friend_20230403_185115_large.jpg",large:"large/friend_20230403_185115_large.jpg",video:false},
+{full:"large/friend_20230403_185155_large.jpg",large:"large/friend_20230403_185155_large.jpg",video:false},
+{full:"large/friend_20230403_185328_large.jpg",large:"large/friend_20230403_185328_large.jpg",video:false},
+{full:"large/friend_20230403_185514_large.jpg",large:"large/friend_20230403_185514_large.jpg",video:false},
+{full:"large/friend_20230404_144418_large.jpg",large:"large/friend_20230404_144418_large.jpg",video:false},
+{full:"large/friend_20230404_152252_large.jpg",large:"large/friend_20230404_152252_large.jpg",video:false},
+{full:"large/friend_20230404_152835_large.jpg",large:"large/friend_20230404_152835_large.jpg",video:false},
+{full:"large/friend_20230404_155143_large.jpg",large:"large/friend_20230404_155143_large.jpg",video:false},
+{full:"large/friend_20230404_155420_large.jpg",large:"large/friend_20230404_155420_large.jpg",video:false},
+{full:"large/friend_20230404_160927_large.jpg",large:"large/friend_20230404_160927_large.jpg",video:false},
+{full:"large/friend_20230405_143516_large.jpg",large:"large/friend_20230405_143516_large.jpg",video:false},
+{full:"large/friend_20230405_145742_large.jpg",large:"large/friend_20230405_145742_large.jpg",video:false},
+{full:"large/friend_20230405_145749_large.jpg",large:"large/friend_20230405_145749_large.jpg",video:false},
+{full:"large/friend_20230406_093750_large.jpg",large:"large/friend_20230406_093750_large.jpg",video:false},
+{full:"large/friend_20230406_094732_large.jpg",large:"large/friend_20230406_094732_large.jpg",video:false},
+{full:"large/friend_20230406_094741_large.jpg",large:"large/friend_20230406_094741_large.jpg",video:false},
+{full:"large/friend_20230406_094750_large.jpg",large:"large/friend_20230406_094750_large.jpg",video:false},
+{full:"large/friend_20230406_094759_large.jpg",large:"large/friend_20230406_094759_large.jpg",video:false},
+{full:"large/friend_20230406_102753_large.jpg",large:"large/friend_20230406_102753_large.jpg",video:false},
+{full:"large/friend_20230406_105120_large.jpg",large:"large/friend_20230406_105120_large.jpg",video:false},
+{full:"large/friend_20230407_094630_large.jpg",large:"large/friend_20230407_094630_large.jpg",video:false},
+{full:"large/friend_20230407_094813_large.jpg",large:"large/friend_20230407_094813_large.jpg",video:false},
+{full:"large/friend_20230407_094815_large.jpg",large:"large/friend_20230407_094815_large.jpg",video:false},
+{full:"large/friend_20230407_113411_large.jpg",large:"large/friend_20230407_113411_large.jpg",video:false},
+{full:"large/friend_20230407_113754_large.jpg",large:"large/friend_20230407_113754_large.jpg",video:false},
+{full:"large/friend_20230407_125535_large.jpg",large:"large/friend_20230407_125535_large.jpg",video:false},
+{full:"large/friend_20230407_130044_large.jpg",large:"large/friend_20230407_130044_large.jpg",video:false},
+{full:"large/friend_20230407_130231_large.jpg",large:"large/friend_20230407_130231_large.jpg",video:false},
+{full:"large/friend_20230407_130237_large.jpg",large:"large/friend_20230407_130237_large.jpg",video:false},
+{full:"large/friend_20230407_130455_large.jpg",large:"large/friend_20230407_130455_large.jpg",video:false},
+{full:"large/friend_20230407_130609_large.jpg",large:"large/friend_20230407_130609_large.jpg",video:false},
+{full:"large/friend_20230407_135921_large.jpg",large:"large/friend_20230407_135921_large.jpg",video:false},
+{full:"large/friend_IMG_5427_large.jpg",large:"large/friend_IMG_5427_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5427_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5431_large.jpg",large:"large/friend_IMG_5431_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5431_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5458_large.jpg",large:"large/friend_IMG_5458_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5458_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5459_large.jpg",large:"large/friend_IMG_5459_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5459_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5472_large.jpg",large:"large/friend_IMG_5472_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5472_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5473_large.jpg",large:"large/friend_IMG_5473_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5473_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5489_large.jpg",large:"large/friend_IMG_5489_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5489_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5493_large.jpg",large:"large/friend_IMG_5493_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5493_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5497_large.jpg",large:"large/friend_IMG_5497_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5497_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5501_large.jpg",large:"large/friend_IMG_5501_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5501_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5515_large.jpg",large:"large/friend_IMG_5515_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5515_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5554_large.jpg",large:"large/friend_IMG_5554_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5554_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_5557_large.jpg",large:"large/friend_IMG_5557_large.jpg",video:false},
+{full:"thumbs/friend_IMG_5557_thumb.jpg",large:null,video:false},
+{full:"large/friend_IMG_7039_large.jpg",large:"large/friend_IMG_7039_large.jpg",video:false},
+{full:"large/friend_PXL_20230407_120013914_large.jpg",large:"large/friend_PXL_20230407_120013914_large.jpg",video:false},
+{full:"large/trip_map_large.jpg",large:"large/trip_map_large.jpg",video:false}
+  ];
+  const lightbox = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lbImg');
+  const lbVideo = document.getElementById('lbVideo');
+  const lbIndex = document.getElementById('lbIndex');
+  const lbOriginalLink = document.getElementById('lbOriginalLink');
+
+  function openLightbox(i) {
+    lbOpenIndex = i;
+    const item = PHOTOS[i];
+    lbVideo.pause();
+    if (item.video) {
+      lbVideo.src = item.full;
+      lbVideo.hidden = false;
+      lbImg.hidden = true;
+    } else {
+      lbImg.src = item.large || item.full;
+      lbImg.hidden = false;
+      lbVideo.hidden = true;
+      lbVideo.removeAttribute('src');
+    }
+    lbIndex.textContent = i + 1;
+    if (lbOriginalLink) lbOriginalLink.href = item.full;
+    lbCheckbox.checked = selected.has(tiles[i].dataset.photo);
+    lightbox.hidden = false;
+  }
+  function closeLightbox() {
+    lightbox.hidden = true;
+    lbVideo.pause();
+    lbOpenIndex = null;
+  }
+  function showDelta(delta) {
+    if (lbOpenIndex === null) return;
+    openLightbox((lbOpenIndex + delta + PHOTOS.length) % PHOTOS.length);
+  }
+
+  document.getElementById('lbClose').onclick = closeLightbox;
+  document.getElementById('lbPrev').onclick = () => showDelta(-1);
+  document.getElementById('lbNext').onclick = () => showDelta(1);
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+  lbCheckbox.addEventListener('change', () => {
+    if (lbOpenIndex !== null) toggleSelection(tiles[lbOpenIndex]);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (lightbox.hidden) return;
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === 'ArrowLeft') showDelta(-1);
+    else if (e.key === 'ArrowRight') showDelta(1);
+    else if (e.key === ' ') { e.preventDefault(); lbCheckbox.checked = !lbCheckbox.checked; lbCheckbox.dispatchEvent(new Event('change')); }
+  });
+</script>
+</body>
+</html>
