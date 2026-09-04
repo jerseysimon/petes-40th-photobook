@@ -22,13 +22,18 @@
   p.summary { font-size: 1.1rem; line-height:1.7; font-style: italic; }
   .gallery { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:8px; }
   .tile { position:relative; display:block; aspect-ratio:1; overflow:hidden; border-radius:6px; background:#eee; }
-  .tile img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .2s; }
-  .tile:hover img { transform: scale(1.05); }
+  .tile img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .2s;
+    transform: rotate(var(--rot, 0deg)) scale(var(--tile-scale, 1)); }
+  .tile:hover img { --tile-scale: 1.05; }
   .video-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; font-family: system-ui, sans-serif; pointer-events:none; }
   .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
   .sel-toggle { position:absolute; top:6px; left:6px; z-index:2; width:22px; height:22px; border-radius:50%;
     background:rgba(255,255,255,.85); box-shadow:0 1px 3px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .sel-toggle input { width:16px; height:16px; margin:0; cursor:pointer; }
+  .rotate-btn { position:absolute; bottom:6px; right:6px; z-index:2; width:24px; height:24px; border-radius:50%;
+    background:rgba(255,255,255,.85); box-shadow:0 1px 3px rgba(0,0,0,.3); border:none; cursor:pointer; font-size:14px;
+    display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }
+  .rotate-btn:hover { background:#fff; }
   .picker-toolbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:12px;
     background:var(--bg); border-bottom:1px solid var(--line); padding:10px 32px; font-family: system-ui, sans-serif; font-size:.85rem; }
   .picker-toolbar button { font-family: system-ui, sans-serif; font-size:.8rem; border:1px solid var(--line); background:var(--card);
@@ -42,7 +47,9 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .lightbox[hidden] { display:none; }
   .lb-stage { flex:1; width:100%; display:flex; align-items:center; justify-content:center; min-height:0; padding: 16px; }
-  .lb-stage img, .lb-stage video { max-width: 92vw; max-height: 76vh; object-fit:contain; border-radius:4px; }
+  .lb-stage img, .lb-stage video { max-width: 92vw; max-height: 76vh; object-fit:contain; border-radius:4px;
+    transform: rotate(var(--rot, 0deg)); transition: transform .2s; }
+  .lb-stage img.rot90, .lb-stage img.rot270 { max-width: 76vh; max-height: 92vw; }
   .lb-close, .lb-prev, .lb-next { position:absolute; background:rgba(255,255,255,.1); color:#fff; border:none;
     width:44px; height:44px; border-radius:50%; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
   .lb-close:hover, .lb-prev:hover, .lb-next:hover { background:rgba(255,255,255,.25); }
@@ -54,6 +61,9 @@
   .lb-footer input { width:18px; height:18px; }
   .lb-footer a { color:#e3a874; text-decoration:none; }
   .lb-footer a:hover { text-decoration:underline; }
+  .lb-footer button { font-family: system-ui, sans-serif; font-size:.85rem; border:1px solid rgba(255,255,255,.3);
+    background:transparent; color:#eee; padding:5px 12px; border-radius:6px; cursor:pointer; }
+  .lb-footer button:hover { border-color:#e3a874; color:#e3a874; }
   .lb-counter { color:#aaa; }
 </style>
 </head>
@@ -85,38 +95,47 @@
               <img src="thumbs/0456B34F-04FB-45CB-B94B-0FB2169981BC_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="27FD5218-FB18-4E13-A0BC-FAA92DA4C12D_original.jpg" data-index="1">
               <img src="thumbs/27FD5218-FB18-4E13-A0BC-FAA92DA4C12D_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="2EE7A31F-9316-4182-B383-3F7CDDCB7E3E_original.jpg" data-index="2">
               <img src="thumbs/2EE7A31F-9316-4182-B383-3F7CDDCB7E3E_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="5B49C6F3-51FA-4FC8-93FA-376C7493E832_original.jpg" data-index="3">
               <img src="thumbs/5B49C6F3-51FA-4FC8-93FA-376C7493E832_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="6CE1E949-FDD2-4781-9ED8-C4D56E1CE7C4_original.jpg" data-index="4">
               <img src="thumbs/6CE1E949-FDD2-4781-9ED8-C4D56E1CE7C4_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="C4548E96-091B-4F7C-8319-9C1C3FCABAF2_original.jpg" data-index="5">
               <img src="thumbs/C4548E96-091B-4F7C-8319-9C1C3FCABAF2_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="DB4B1FA6-F1C6-4DE8-986A-698C6F3ED549_original.jpg" data-index="6">
               <img src="thumbs/DB4B1FA6-F1C6-4DE8-986A-698C6F3ED549_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="E5C3863B-2F37-4B78-9CBE-FC7C4D6CFE44_original.jpg" data-index="7">
               <img src="thumbs/E5C3863B-2F37-4B78-9CBE-FC7C4D6CFE44_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div><div class="tile" data-photo="F8E301EC-30F5-4BAA-9183-D7174015F619_original.jpg" data-index="8">
               <img src="thumbs/F8E301EC-30F5-4BAA-9183-D7174015F619_thumb.jpg" loading="lazy" alt="">
               
               <label class="sel-toggle"><input type="checkbox" class="sel-checkbox"></label>
+              <button class="rotate-btn" type="button" aria-label="Rotate">&#8635;</button>
             </div></div>
   </section>
 </main>
@@ -132,6 +151,7 @@
   <div class="lb-footer">
     <span class="lb-counter"><span id="lbIndex">1</span> / 9</span>
     <label><input type="checkbox" id="lbCheckbox"> Select for book</label>
+    <button id="lbRotate" type="button">&#8635; Rotate</button>
     
   </div>
 </div>
@@ -178,7 +198,9 @@
   // --- photo picker ---
   const TRIP_SLUG = "2023-10-29_to_2023-10-30_Animal-Kingdom-MK-Day-Out";
   const STORAGE_KEY = 'photobook-sel-' + TRIP_SLUG;
+  const ROT_KEY = 'photobook-rot-' + TRIP_SLUG;
   let selected = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+  let rotations = JSON.parse(localStorage.getItem(ROT_KEY) || '{}');
   const tiles = [...document.querySelectorAll('.tile')];
   const selCountEl = document.getElementById('selCount');
   const lbCheckbox = document.getElementById('lbCheckbox');
@@ -186,6 +208,7 @@
 
   function updateCount() { selCountEl.textContent = selected.size; }
   function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); updateCount(); }
+  function saveRotations() { localStorage.setItem(ROT_KEY, JSON.stringify(rotations)); }
   function setTileState(tile, on) {
     const cb = tile.querySelector('.sel-checkbox');
     cb.checked = on;
@@ -199,14 +222,31 @@
     setTileState(tile, on);
     save();
   }
+  function applyTileRotation(tile) {
+    const deg = rotations[tile.dataset.photo] || 0;
+    tile.querySelector('img').style.setProperty('--rot', deg + 'deg');
+  }
+  function rotateTile(tile) {
+    const photo = tile.dataset.photo;
+    const deg = ((rotations[photo] || 0) + 90) % 360;
+    if (deg === 0) delete rotations[photo]; else rotations[photo] = deg;
+    saveRotations();
+    applyTileRotation(tile);
+    if (lbOpenIndex !== null && tiles[lbOpenIndex] === tile) applyLightboxRotation(deg);
+  }
 
   tiles.forEach(tile => {
     const photo = tile.dataset.photo;
     const cb = tile.querySelector('.sel-checkbox');
     setTileState(tile, selected.has(photo));
+    applyTileRotation(tile);
     cb.addEventListener('change', () => toggleSelection(tile));
+    tile.querySelector('.rotate-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      rotateTile(tile);
+    });
     tile.addEventListener('click', (e) => {
-      if (e.target.closest('.sel-toggle')) return;  // checkbox click already handled above
+      if (e.target.closest('.sel-toggle') || e.target.closest('.rotate-btn')) return;
       openLightbox(Number(tile.dataset.index));
     });
   });
@@ -222,7 +262,7 @@
     save();
   };
   document.getElementById('exportSelBtn').onclick = () => {
-    const data = {trip: TRIP_SLUG, selected: [...selected]};
+    const data = {trip: TRIP_SLUG, selected: [...selected], rotations: rotations};
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -251,6 +291,13 @@
   const lbVideo = document.getElementById('lbVideo');
   const lbIndex = document.getElementById('lbIndex');
   const lbOriginalLink = document.getElementById('lbOriginalLink');
+  const lbRotate = document.getElementById('lbRotate');
+
+  function applyLightboxRotation(deg) {
+    lbImg.style.setProperty('--rot', deg + 'deg');
+    lbImg.classList.toggle('rot90', deg === 90 || deg === 270);
+    lbImg.classList.toggle('rot270', deg === 90 || deg === 270);
+  }
 
   function openLightbox(i) {
     lbOpenIndex = i;
@@ -269,6 +316,7 @@
     lbIndex.textContent = i + 1;
     if (lbOriginalLink) lbOriginalLink.href = item.full;
     lbCheckbox.checked = selected.has(tiles[i].dataset.photo);
+    applyLightboxRotation(rotations[tiles[i].dataset.photo] || 0);
     lightbox.hidden = false;
   }
   function closeLightbox() {
@@ -288,11 +336,15 @@
   lbCheckbox.addEventListener('change', () => {
     if (lbOpenIndex !== null) toggleSelection(tiles[lbOpenIndex]);
   });
+  lbRotate.addEventListener('click', () => {
+    if (lbOpenIndex !== null) rotateTile(tiles[lbOpenIndex]);
+  });
   document.addEventListener('keydown', (e) => {
     if (lightbox.hidden) return;
     if (e.key === 'Escape') closeLightbox();
     else if (e.key === 'ArrowLeft') showDelta(-1);
     else if (e.key === 'ArrowRight') showDelta(1);
+    else if (e.key === 'r' || e.key === 'R') { if (lbOpenIndex !== null) rotateTile(tiles[lbOpenIndex]); }
     else if (e.key === ' ') { e.preventDefault(); lbCheckbox.checked = !lbCheckbox.checked; lbCheckbox.dispatchEvent(new Event('change')); }
   });
 </script>
